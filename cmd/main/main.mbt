@@ -1,0 +1,215 @@
+///|
+priv struct CliOptions {
+  input : String
+  format : @kit.OutputFormat
+  output : String?
+}
+
+///|
+let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot.\n" +
+  "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
+  "Reads a regular UTF-8 JSON file up to 2 MiB. Prints the report by default.\n" +
+  "--out publishes to a new file on a filesystem that supports hard links.\n" +
+  "Exit 0: plan produced (possibly with shortages). Exit 2: input or I/O error.\n"
+
+///|
+fn parse_options(args : FixedArray[String]) -> CliOptions raise @kit.PlanError {
+  if args.length() < 2 || args[1] == "" || args[1].has_prefix("--") {
+    raise @kit.Invalid("plan requires an input path")
+  }
+  let mut format : @kit.OutputFormat? = None
+  let mut output : String? = None
+  let mut index = 2
+  while index < args.length() {
+    let option = args[index]
+    if option != "--format" && option != "--out" {
+      raise @kit.Invalid("unexpected argument: " + option)
+    }
+    if index + 1 >= args.length() ||
+      args[index + 1] == "" ||
+      args[index + 1].has_prefix("--") {
+      raise @kit.Invalid("missing value for " + option)
+    }
+    let value = args[index + 1]
+    if option == "--format" {
+      if format is Some(_) {
+        raise @kit.Invalid("duplicate --format")
+      }
+      format = Some(
+        match value {
+          "json" => @kit.JsonReport
+          "pick-csv" => @kit.PickCsv
+          "buy-csv" => @kit.BuyCsv
+          _ => raise @kit.Invalid("--format must be json, pick-csv, or buy-csv")
+        },
+      )
+    } else {
+      if output is Some(_) {
+        raise @kit.Invalid("duplicate --out")
+      }
+      output = Some(value)
+    }
+    index += 2
+  }
+  { input: args[1], format: format.unwrap_or(@kit.JsonReport), output, }
+}
+
+///|
+#external
+priv type FileResult
+
+///|
+extern "js" fn FileResult::error(self : Self) -> String =
+  #| result => result.error
+
+///|
+extern "js" fn FileResult::text(self : Self) -> String =
+  #| result => result.text
+
+///|
+extern "js" fn FileResult::warning(self : Self) -> String =
+  #| result => result.warning
+
+///|
+extern "js" fn read_utf8(input : String) -> FileResult =
+  #| input => {
+  #|   const limit = 2 * 1024 * 1024;
+  #|   try {
+  #|     const fs = process.getBuiltinModule("node:fs");
+  #|     if (!fs.lstatSync(input).isFile()) throw Error("input must be a regular file");
+  #|     const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) |
+  #|       (fs.constants.O_NONBLOCK ?? 0);
+  #|     const fd = fs.openSync(input, flags);
+  #|     try {
+  #|       const before = fs.fstatSync(fd, { bigint: true });
+  #|       if (!before.isFile()) throw Error("input must be a regular file");
+  #|       if (before.size > BigInt(limit)) throw Error("input exceeds 2 MiB");
+  #|       const buffer = Buffer.allocUnsafe(Number(before.size) + 1);
+  #|       let used = 0;
+  #|       while (used < buffer.length) {
+  #|         const count = fs.readSync(fd, buffer, used, buffer.length - used, used);
+  #|         if (count === 0) break;
+  #|         used += count;
+  #|       }
+  #|       const after = fs.fstatSync(fd, { bigint: true });
+  #|       if (BigInt(used) !== before.size || after.size !== before.size ||
+  #|           after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) {
+  #|         throw Error("input changed while reading");
+  #|       }
+  #|       let text;
+  #|       try {
+  #|         text = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, used));
+  #|       } catch {
+  #|         throw Error("input is not valid UTF-8");
+  #|       }
+  #|       return { error: "", text, warning: "" };
+  #|     } finally {
+  #|       fs.closeSync(fd);
+  #|     }
+  #|   } catch (error) {
+  #|     return { error: String(error.message ?? error), text: "", warning: "" };
+  #|   }
+  #| }
+
+///|
+extern "js" fn write_new(output : String, text : String) -> FileResult =
+  #| (output, text) => {
+  #|   const fs = process.getBuiltinModule("node:fs");
+  #|   const path = process.getBuiltinModule("node:path");
+  #|   let stage, stagedFile, stageIdentity;
+  #|   let ownsFile = false;
+  #|   let failure = "", warning = "";
+  #|   try {
+  #|     const requested = path.resolve(output);
+  #|     const parent = fs.realpathSync(path.dirname(requested));
+  #|     const target = path.join(parent, path.basename(requested));
+  #|     stage = fs.mkdtempSync(path.join(parent, ".benchkitmap-"));
+  #|     stageIdentity = fs.lstatSync(stage, { bigint: true });
+  #|     stagedFile = path.join(stage, "report");
+  #|     const fd = fs.openSync(stagedFile, "wx", 0o600);
+  #|     ownsFile = true;
+  #|     try {
+  #|       fs.writeFileSync(fd, text, "utf8");
+  #|       fs.fsyncSync(fd);
+  #|     } finally {
+  #|       fs.closeSync(fd);
+  #|     }
+  #|     // A hard link publishes the complete file and fails if the target exists.
+  #|     fs.linkSync(stagedFile, target);
+  #|   } catch (error) {
+  #|     failure = error.code === "EEXIST"
+  #|       ? "output already exists"
+  #|       : String(error.message ?? error);
+  #|   }
+  #|   if (stage !== undefined) {
+  #|     try {
+  #|       const current = fs.lstatSync(stage, { bigint: true });
+  #|       if (!stageIdentity || !current.isDirectory() || current.dev !== stageIdentity.dev ||
+  #|           current.ino !== stageIdentity.ino || current.birthtimeNs !== stageIdentity.birthtimeNs) {
+  #|         throw Error("staging directory identity changed");
+  #|       }
+  #|       if (ownsFile) fs.unlinkSync(stagedFile);
+  #|       fs.rmdirSync(stage);
+  #|     } catch (error) {
+  #|       warning = "could not clean staging path " + stage + ": " + String(error.message ?? error);
+  #|     }
+  #|   }
+  #|   return { error: failure, text: "", warning };
+  #| }
+
+///|
+extern "js" fn arguments() -> FixedArray[String] =
+  #| () => process.argv.slice(2)
+
+///|
+extern "js" fn write_stdout(text : String) -> Unit =
+  #| text => { process.stdout.write(text); }
+
+///|
+extern "js" fn write_stderr(text : String) -> Unit =
+  #| text => { process.stderr.write(text + "\n"); }
+
+///|
+extern "js" fn set_exit_code(code : Int32) -> Unit =
+  #| code => { process.exitCode = code; }
+
+///|
+fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
+  match args {
+    [] | ["help"] | ["--help"] | ["-h"] | ["plan", "--help"] | ["plan", "-h"] =>
+      write_stdout(usage)
+    ["plan", ..] => {
+      let options = parse_options(args)
+      let input = read_utf8(options.input)
+      if input.error() != "" {
+        raise @kit.Invalid(input.error())
+      }
+      let result = @kit.plan(@kit.parse_manifest(input.text()))
+      let report = @kit.render_plan(result, options.format)
+      let report = if report.has_suffix("\n") { report } else { report + "\n" }
+      match options.output {
+        None => write_stdout(report)
+        Some(output) => {
+          let written = write_new(output, report)
+          if written.warning() != "" {
+            write_stderr("warning: " + written.warning())
+          }
+          if written.error() != "" {
+            raise @kit.Invalid(written.error())
+          }
+        }
+      }
+    }
+    [command, ..] => raise @kit.Invalid("unknown command: " + command)
+  }
+}
+
+///|
+fn main {
+  run(arguments()) catch {
+    @kit.Invalid(message) => {
+      write_stderr("BenchKitMap: " + message)
+      set_exit_code(2)
+    }
+  }
+}

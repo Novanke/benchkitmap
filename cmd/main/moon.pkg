@@ -1,0 +1,9 @@
+import {
+  "Novanke/benchkitmap" @kit,
+}
+
+pkgtype(kind: "executable")
+
+options(
+  supported_targets: "js",
+)

@@ -1,0 +1,30 @@
+{
+  "schema": "benchkitmap/v1",
+  "parts": [
+    {"id":"sensor","stock":6,"packs":[
+      {"id":"sensor-3","quantity":3,"cost_cents":740},
+      {"id":"sensor-5","quantity":5,"cost_cents":1050}
+    ]},
+    {"id":"board","stock":10,"packs":[{"id":"board-5","quantity":5,"cost_cents":500}]},
+    {"id":"lead","stock":30,"packs":[
+      {"id":"lead-10","quantity":10,"cost_cents":350},
+      {"id":"lead-25","quantity":25,"cost_cents":750}
+    ]},
+    {"id":"enclosure","stock":4,"packs":[]},
+    {"id":"bolt","stock":30,"packs":[{"id":"bolt-10","quantity":10,"cost_cents":120}]}
+  ],
+  "kits": [
+    {"id":"sensor-core","items":[
+      {"item":"sensor","quantity":1},{"item":"board","quantity":1},{"item":"lead","quantity":3}
+    ]},
+    {"id":"field-kit","items":[
+      {"item":"sensor-core","quantity":1},{"item":"lead","quantity":1},
+      {"item":"enclosure","quantity":1},{"item":"bolt","quantity":4}
+    ]},
+    {"id":"desk-kit","items":[{"item":"sensor-core","quantity":1},{"item":"bolt","quantity":2}]}
+  ],
+  "orders":[
+    {"id":"field-session","kit":"field-kit","quantity":6},
+    {"id":"desk-session","kit":"desk-kit","quantity":8}
+  ]
+}
