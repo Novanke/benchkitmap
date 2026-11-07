@@ -47,6 +47,9 @@ def check(node: str, cli: Path) -> None:
         ("sensor-3", 1),
         ("sensor-5", 1),
     ]
+    projection = json.loads(run("project", manifest).stdout)
+    assert projection["purchase_complete"] is False
+    assert [(row["buildable_now"], row["buildable_after_priced_purchases"]) for row in projection["orders"]] == [(4, 4), (2, 8)]
 
     with tempfile.TemporaryDirectory(prefix="benchkitmap-smoke-") as directory:
         work = Path(directory)

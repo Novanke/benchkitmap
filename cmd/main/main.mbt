@@ -8,21 +8,32 @@ priv struct CliOptions {
 ///|
 let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot.\n" +
   "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
+  "       project INPUT [--out NEW_FILE]\n" +
   "Reads a regular UTF-8 JSON file up to 2 MiB. Prints the report by default.\n" +
   "--out publishes to a new file on a filesystem that supports hard links.\n" +
   "Exit 0: plan produced (possibly with shortages). Exit 2: input or I/O error.\n"
 
 ///|
-fn parse_options(args : FixedArray[String]) -> CliOptions raise @kit.PlanError {
-  if args.length() < 2 || args[1] == "" || args[1].has_prefix("--") {
-    raise @kit.Invalid("plan requires an input path")
+fn parse_options(
+  args : FixedArray[String],
+  positionals : Int32,
+  allow_format : Bool,
+) -> CliOptions raise @kit.PlanError {
+  let first_option = positionals + 1
+  if args.length() < first_option {
+    raise @kit.Invalid(args[0] + " is missing required arguments")
+  }
+  for i in 1..<first_option {
+    if args[i] == "" || args[i].has_prefix("--") {
+      raise @kit.Invalid(args[0] + " is missing required arguments")
+    }
   }
   let mut format : @kit.OutputFormat? = None
   let mut output : String? = None
-  let mut index = 2
+  let mut index = first_option
   while index < args.length() {
     let option = args[index]
-    if option != "--format" && option != "--out" {
+    if (option != "--format" || !allow_format) && option != "--out" {
       raise @kit.Invalid("unexpected argument: " + option)
     }
     if index + 1 >= args.length() ||
@@ -174,31 +185,47 @@ extern "js" fn set_exit_code(code : Int32) -> Unit =
   #| code => { process.exitCode = code; }
 
 ///|
+fn load_text(input : String) -> String raise @kit.PlanError {
+  let file = read_utf8(input)
+  if file.error() != "" {
+    raise @kit.Invalid(file.error())
+  }
+  file.text()
+}
+
+///|
+fn publish_report(text : String, output : String?) -> Unit raise @kit.PlanError {
+  let text = if text.has_suffix("\n") { text } else { text + "\n" }
+  match output {
+    None => write_stdout(text)
+    Some(path) => {
+      let written = write_new(path, text)
+      if written.warning() != "" {
+        write_stderr("warning: " + written.warning())
+      }
+      if written.error() != "" {
+        raise @kit.Invalid(written.error())
+      }
+    }
+  }
+}
+
+///|
 fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
   match args {
     [] | ["help"] | ["--help"] | ["-h"] | ["plan", "--help"] | ["plan", "-h"] =>
       write_stdout(usage)
     ["plan", ..] => {
-      let options = parse_options(args)
-      let input = read_utf8(options.input)
-      if input.error() != "" {
-        raise @kit.Invalid(input.error())
-      }
-      let result = @kit.plan(@kit.parse_manifest(input.text()))
-      let report = @kit.render_plan(result, options.format)
-      let report = if report.has_suffix("\n") { report } else { report + "\n" }
-      match options.output {
-        None => write_stdout(report)
-        Some(output) => {
-          let written = write_new(output, report)
-          if written.warning() != "" {
-            write_stderr("warning: " + written.warning())
-          }
-          if written.error() != "" {
-            raise @kit.Invalid(written.error())
-          }
-        }
-      }
+      let options = parse_options(args, 1, true)
+      let result = @kit.plan(@kit.parse_manifest(load_text(options.input)))
+      publish_report(@kit.render_plan(result, options.format), options.output)
+    }
+    ["project", ..] => {
+      let options = parse_options(args, 1, false)
+      let result = @kit.project_after_purchase(
+        @kit.parse_manifest(load_text(options.input)),
+      )
+      publish_report(@kit.render_projection(result), options.output)
     }
     [command, ..] => raise @kit.Invalid("unknown command: " + command)
   }

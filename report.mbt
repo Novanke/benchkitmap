@@ -184,3 +184,34 @@ pub fn render_plan(result : Plan, format : OutputFormat) -> String {
     BuyCsv => buy_csv(result)
   }
 }
+
+///|
+/// Export kit readiness now and after receiving all priced purchases.
+pub fn render_projection(result : Projection) -> String {
+  let orders = result.orders.map(order => {
+    Json::object(
+      Map([
+        ("id", Json::string(order.id)),
+        ("kit", Json::string(order.kit)),
+        ("requested", report_number(order.requested)),
+        ("buildable_now", report_number(order.buildable_now)),
+        (
+          "buildable_after_priced_purchases",
+          report_number(order.buildable_after_priced_purchases),
+        ),
+      ]),
+    )
+  })
+  Json::object(
+    Map([
+      ("schema", Json::string("benchkitmap/projection-v1")),
+      ("orders", Json::array(orders)),
+      ("purchase_complete", Json::boolean(result.purchase_complete)),
+      (
+        "purchase_total_cents",
+        Json::string(result.purchase_total_cents.to_string()),
+      ),
+    ]),
+  ).stringify(indent=2) +
+  "\n"
+}
