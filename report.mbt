@@ -8,8 +8,11 @@ fn issue_json(issue : PartIssue) -> Json {
   Json::object(
     Map([
       ("part", Json::string(issue.part)),
+      ("units_per_kit", report_number(issue.units_per_kit)),
+      ("available_before", report_number(issue.available_before)),
       ("required", report_number(issue.required)),
       ("issued", report_number(issue.issued)),
+      ("limits_order", Json::boolean(issue.limits_order)),
     ]),
   )
 }

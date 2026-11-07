@@ -188,8 +188,18 @@ pub fn allocate(manifest : Manifest) -> Allocation raise PlanError {
           order.id,
         )
         let issued = (count.to_int64() * buildable.to_int64()).to_int()
+        let available_before = remaining[part_index]
+        let limits_order = buildable < order.quantity &&
+          available_before / count == buildable
         remaining[part_index] -= issued
-        items.push({ part: part_id, required: requested, issued, })
+        items.push({
+          part: part_id,
+          units_per_kit: count,
+          available_before,
+          required: requested,
+          issued,
+          limits_order,
+        })
       }
     }
     orders.push({

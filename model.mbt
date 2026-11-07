@@ -44,8 +44,11 @@ pub(all) struct Manifest {
 ///|
 pub(all) struct PartIssue {
   part : String
+  units_per_kit : Int32
+  available_before : Int32
   required : Int32
   issued : Int32
+  limits_order : Bool
 }
 
 ///|
