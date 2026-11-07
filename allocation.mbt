@@ -111,7 +111,11 @@ fn allocation_expand(
 pub fn allocate(manifest : Manifest) -> Allocation raise PlanError {
   allocation_check_length("parts", manifest.parts.length())
   allocation_check_length("kits", manifest.kits.length())
-  allocation_check_length("orders", manifest.orders.length())
+  if manifest.orders.length() > ALLOCATION_LIMIT {
+    raise Invalid(
+      "orders must contain at most " + ALLOCATION_LIMIT.to_string() + " entries",
+    )
+  }
 
   let part_indices : Map[String, Int32] = Map([])
   let kit_indices : Map[String, Int32] = Map([])

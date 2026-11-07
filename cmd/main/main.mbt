@@ -10,6 +10,7 @@ let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot
   "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
   "       project INPUT [--out NEW_FILE]\n" +
   "       refresh-stock INPUT COUNTS.csv [--out NEW_FILE]\n" +
+  "       issue INPUT ORDER QUANTITY [--out NEW_FILE]\n" +
   "Reads a regular UTF-8 JSON file up to 2 MiB. Prints the report by default.\n" +
   "--out publishes to a new file on a filesystem that supports hard links.\n" +
   "Exit 0: plan produced (possibly with shortages). Exit 2: input or I/O error.\n"
@@ -212,6 +213,24 @@ fn publish_report(text : String, output : String?) -> Unit raise @kit.PlanError 
 }
 
 ///|
+fn issue_quantity(text : String) -> Int32 raise @kit.PlanError {
+  let mut value = 0
+  for digit in text.iter() {
+    if digit < '0' || digit > '9' {
+      raise @kit.Invalid("issue quantity must be a positive decimal integer")
+    }
+    value = value * 10 + digit.to_int() - '0'.to_int()
+    if value > 1_000_000 {
+      raise @kit.Invalid("issue quantity exceeds 1000000")
+    }
+  }
+  if value == 0 {
+    raise @kit.Invalid("issue quantity must be positive")
+  }
+  value
+}
+
+///|
 fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
   match args {
     [] | ["help"] | ["--help"] | ["-h"] | ["plan", "--help"] | ["plan", "-h"] =>
@@ -233,6 +252,13 @@ fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
       let manifest = @kit.parse_manifest(load_text(options.input))
       let updated = @kit.refresh_stock(manifest, load_text(args[2]))
       ignore(@kit.allocate(updated))
+      publish_report(@kit.encode_manifest(updated), options.output)
+    }
+    ["issue", ..] => {
+      let options = parse_options(args, 3, false)
+      let quantity = issue_quantity(args[3])
+      let manifest = @kit.parse_manifest(load_text(options.input))
+      let updated = @kit.record_issue(manifest, args[2], quantity)
       publish_report(@kit.encode_manifest(updated), options.output)
     }
     [command, ..] => raise @kit.Invalid("unknown command: " + command)

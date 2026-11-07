@@ -162,7 +162,7 @@ pub fn parse_manifest(text : String) -> Manifest raise PlanError {
   for i, value in field_array(root, "kits", "manifest", 1, 256) {
     kits.push(decode_kit(value, "kits[" + i.to_string() + "]"))
   }
-  for i, value in field_array(root, "orders", "manifest", 1, 256) {
+  for i, value in field_array(root, "orders", "manifest", 0, 256) {
     orders.push(decode_order(value, "orders[" + i.to_string() + "]"))
   }
   { parts, kits, orders, }

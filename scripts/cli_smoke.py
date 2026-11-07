@@ -59,6 +59,15 @@ def check(node: str, cli: Path) -> None:
         refreshed_plan = json.loads(run("plan", refreshed).stdout)
         assert [row["buildable"] for row in refreshed_plan["orders"]] == [6, 0]
         assert refreshed_plan["purchase_complete"] is True
+        issued = work / "issued.json"
+        run("issue", manifest, "desk-session", "3", "--out", issued, code=2)
+        assert not issued.exists()
+        run("issue", manifest, "field-session", "3", "--out", issued)
+        next_input = json.loads(issued.read_text(encoding="utf-8"))
+        assert [part["stock"] for part in next_input["parts"]] == [3, 7, 18, 1, 18]
+        assert [order["quantity"] for order in next_input["orders"]] == [3, 8]
+        next_plan = json.loads(run("plan", issued).stdout)
+        assert [row["buildable"] for row in next_plan["orders"]] == [1, 2]
         pick, buy = work / "pick.csv", work / "buy.csv"
         assert run("plan", manifest, "--format", "pick-csv", "--out", pick).stdout == ""
         run("plan", manifest, "--format", "buy-csv", "--out", buy)
