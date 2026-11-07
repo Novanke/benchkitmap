@@ -53,6 +53,12 @@ def check(node: str, cli: Path) -> None:
 
     with tempfile.TemporaryDirectory(prefix="benchkitmap-smoke-") as directory:
         work = Path(directory)
+        counts, refreshed = work / "counts.csv", work / "refreshed.json"
+        counts.write_bytes(b'"part","stock"\r\n"enclosure","6"\r\n')
+        run("refresh-stock", manifest, counts, "--out", refreshed)
+        refreshed_plan = json.loads(run("plan", refreshed).stdout)
+        assert [row["buildable"] for row in refreshed_plan["orders"]] == [6, 0]
+        assert refreshed_plan["purchase_complete"] is True
         pick, buy = work / "pick.csv", work / "buy.csv"
         assert run("plan", manifest, "--format", "pick-csv", "--out", pick).stdout == ""
         run("plan", manifest, "--format", "buy-csv", "--out", buy)

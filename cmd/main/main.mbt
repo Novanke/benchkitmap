@@ -9,6 +9,7 @@ priv struct CliOptions {
 let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot.\n" +
   "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
   "       project INPUT [--out NEW_FILE]\n" +
+  "       refresh-stock INPUT COUNTS.csv [--out NEW_FILE]\n" +
   "Reads a regular UTF-8 JSON file up to 2 MiB. Prints the report by default.\n" +
   "--out publishes to a new file on a filesystem that supports hard links.\n" +
   "Exit 0: plan produced (possibly with shortages). Exit 2: input or I/O error.\n"
@@ -226,6 +227,13 @@ fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
         @kit.parse_manifest(load_text(options.input)),
       )
       publish_report(@kit.render_projection(result), options.output)
+    }
+    ["refresh-stock", ..] => {
+      let options = parse_options(args, 2, false)
+      let manifest = @kit.parse_manifest(load_text(options.input))
+      let updated = @kit.refresh_stock(manifest, load_text(args[2]))
+      ignore(@kit.allocate(updated))
+      publish_report(@kit.encode_manifest(updated), options.output)
     }
     [command, ..] => raise @kit.Invalid("unknown command: " + command)
   }
