@@ -1,0 +1,42 @@
+name: Build and verify BenchKitMap
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.16.0'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install official MoonBit toolchain
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            pwsh -NoProfile -Command 'irm https://cli.moonbitlang.com/install/powershell.ps1 | iex'
+            echo "$USERPROFILE/.moon/bin" >> "$GITHUB_PATH"
+          else
+            curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+            echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Check, test and build
+        shell: bash
+        run: |
+          moon version --all
+          moon fmt --check
+          moon info
+          git diff --exit-code -- '*.mbti'
+          moon test --target wasm-gc --deny-warn
+          moon test --target js --deny-warn
+          moon build --target js --release --deny-warn
+          moon run examples/sdk --target wasm-gc --release --deny-warn
+          moon run examples/sdk --target js --release --deny-warn
+          python scripts/cli_smoke.py

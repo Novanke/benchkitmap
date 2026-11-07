@@ -1,0 +1,145 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Novanke/benchkitmap"
+
+// Values
+pub fn allocate(Manifest) -> Allocation raise PlanError
+
+pub fn encode_manifest(Manifest) -> String
+
+pub fn parse_manifest(String) -> Manifest raise PlanError
+
+pub fn plan(Manifest) -> Plan raise PlanError
+
+pub fn project_after_purchase(Manifest) -> Projection raise PlanError
+
+pub fn recommend_purchase(Int32, Array[PackOption]) -> Purchase? raise PlanError
+
+pub fn record_issue(Manifest, String, Int32) -> Manifest raise PlanError
+
+pub fn refresh_stock(Manifest, String) -> Manifest raise PlanError
+
+pub fn render_plan(Plan, OutputFormat) -> String
+
+pub fn render_projection(Projection) -> String
+
+// Errors
+pub(all) suberror PlanError {
+  Invalid(String)
+}
+
+// Types and methods
+pub(all) struct Allocation {
+  orders : Array[OrderPlan]
+  parts : Array[PartBalance]
+}
+
+pub(all) struct ItemNeed {
+  item : String
+  quantity : Int32
+}
+
+pub(all) struct Kit {
+  id : String
+  items : Array[ItemNeed]
+}
+
+pub(all) struct Manifest {
+  parts : Array[Part]
+  kits : Array[Kit]
+  orders : Array[Order]
+}
+
+pub(all) struct Order {
+  id : String
+  kit : String
+  quantity : Int32
+}
+
+pub(all) struct OrderPlan {
+  id : String
+  kit : String
+  requested : Int32
+  buildable : Int32
+  items : Array[PartIssue]
+}
+
+pub(all) enum OutputFormat {
+  JsonReport
+  PickCsv
+  BuyCsv
+}
+
+pub(all) struct PackCount {
+  id : String
+  quantity : Int32
+  count : Int32
+  unit_cost_cents : Int32
+}
+
+pub(all) struct PackOption {
+  id : String
+  quantity : Int32
+  cost_cents : Int32
+}
+
+pub(all) struct Part {
+  id : String
+  stock : Int32
+  packs : Array[PackOption]
+}
+
+pub(all) struct PartBalance {
+  part : String
+  stock : Int32
+  required : Int32
+  issued : Int32
+  remaining_stock : Int32
+  shortage : Int32
+}
+
+pub(all) struct PartIssue {
+  part : String
+  units_per_kit : Int32
+  available_before : Int32
+  required : Int32
+  issued : Int32
+  limits_order : Bool
+}
+
+pub(all) struct Plan {
+  allocation : Allocation
+  purchases : Array[PurchaseLine]
+  purchase_total_cents : Int64
+  purchase_complete : Bool
+}
+
+pub(all) struct ProjectedOrder {
+  id : String
+  kit : String
+  requested : Int32
+  buildable_now : Int32
+  buildable_after_priced_purchases : Int32
+}
+
+pub(all) struct Projection {
+  orders : Array[ProjectedOrder]
+  purchase_complete : Bool
+  purchase_total_cents : Int64
+}
+
+pub(all) struct Purchase {
+  shortage : Int32
+  ordered : Int32
+  cost_cents : Int64
+  packs : Array[PackCount]
+}
+
+pub(all) struct PurchaseLine {
+  part : String
+  shortage : Int32
+  purchase : Purchase?
+}
+
+// Type aliases
+
+// Traits
