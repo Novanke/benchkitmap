@@ -18,6 +18,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install official MoonBit toolchain
+        env:
+          MOONBIT_INSTALL_VERSION: '0.10.16+b1a0e846e'
         shell: bash
         run: |
           if [ "$RUNNER_OS" = Windows ]; then

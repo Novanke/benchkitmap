@@ -6,11 +6,15 @@ pub fn allocate(Manifest) -> Allocation raise PlanError
 
 pub fn encode_manifest(Manifest) -> String
 
+pub fn parse_deliveries_csv(String) -> Array[PackDelivery] raise PlanError
+
 pub fn parse_manifest(String) -> Manifest raise PlanError
 
 pub fn plan(Manifest) -> Plan raise PlanError
 
 pub fn project_after_purchase(Manifest) -> Projection raise PlanError
+
+pub fn receive_packs(Manifest, Array[PackDelivery]) -> Manifest raise PlanError
 
 pub fn recommend_purchase(Int32, Array[PackOption]) -> Purchase? raise PlanError
 
@@ -74,6 +78,12 @@ pub(all) struct PackCount {
   quantity : Int32
   count : Int32
   unit_cost_cents : Int32
+}
+
+pub(all) struct PackDelivery {
+  part : String
+  pack : String
+  count : Int32
 }
 
 pub(all) struct PackOption {

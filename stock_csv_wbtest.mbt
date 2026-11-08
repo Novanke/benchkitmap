@@ -83,7 +83,7 @@ test "refresh rejects invalid, ambiguous and unsupported stock CSV rows" {
 
 ///|
 test "refresh rejects bytes beyond the CSV input limit" {
-  let csv = "part,stock\nwire," + "0".repeat(STOCK_CSV_BYTES)
+  let csv = "part,stock\nwire," + "0".repeat(CSV_BYTES)
   let rejected = try {
     ignore(refresh_stock(stock_csv_fixture(), csv))
     false

@@ -68,6 +68,33 @@ def check(node: str, cli: Path) -> None:
         assert [order["quantity"] for order in next_input["orders"]] == [3, 8]
         next_plan = json.loads(run("plan", issued).stdout)
         assert [row["buildable"] for row in next_plan["orders"]] == [1, 2]
+
+        first_csv = ROOT / "examples/delivery-first.csv"
+        second_csv = ROOT / "examples/delivery-second.csv"
+        before_deliveries = (first_csv.read_bytes(), second_csv.read_bytes())
+        first, second = work / "received-first.json", work / "received-second.json"
+        run("receive", manifest, first_csv, "--out", first)
+        after_first = first.read_bytes()
+        first_plan = json.loads(run("plan", first).stdout)
+        assert [row["buildable"] for row in first_plan["orders"]] == [4, 5]
+        assert first_plan["parts"][0]["stock"] == 9
+        assert first_plan["parts"][0]["shortage"] == 5
+        run("receive", first, second_csv, "--out", second)
+        after_second = second.read_bytes()
+        second_plan = json.loads(run("plan", second).stdout)
+        assert [row["buildable"] for row in second_plan["orders"]] == [4, 8]
+        assert [p["stock"] for p in second_plan["parts"]] == [14, 15, 50, 4, 40]
+        assert second_plan["purchases"] == [{"part": "enclosure", "shortage": 2, "status": "unsourced"}]
+        assert [o["quantity"] for o in json.loads(after_second)["orders"]] == [6, 8]
+        assert "already exists" in run("receive", first, second_csv, "--out", second, code=2).stderr
+        assert second.read_bytes() == after_second
+        assert first.read_bytes() == after_first
+        assert (first_csv.read_bytes(), second_csv.read_bytes()) == before_deliveries
+        invalid_delivery, missing_snapshot = work / "invalid-delivery.csv", work / "not-published.json"
+        invalid_delivery.write_bytes(b"part,pack,count\nsensor,sensor-3,1\nsensor,unknown,1\n")
+        assert "unknown pack" in run("receive", manifest, invalid_delivery, "--out", missing_snapshot, code=2).stderr
+        assert not missing_snapshot.exists()
+
         pick, buy = work / "pick.csv", work / "buy.csv"
         assert run("plan", manifest, "--format", "pick-csv", "--out", pick).stdout == ""
         run("plan", manifest, "--format", "buy-csv", "--out", buy)
@@ -97,7 +124,7 @@ def check(node: str, cli: Path) -> None:
             "plan", manifest, "--format", "json", "--format", "pick-csv", code=2
         ).stderr
     assert manifest.read_bytes() == source
-    print("BenchKitMap CLI workshop, CSV and failure checks passed")
+    print("BenchKitMap CLI workshop, deliveries, CSV and failure checks passed")
 
 
 if __name__ == "__main__":

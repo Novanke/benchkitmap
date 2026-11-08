@@ -10,10 +10,11 @@ let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot
   "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
   "       project INPUT [--out NEW_FILE]\n" +
   "       refresh-stock INPUT COUNTS.csv [--out NEW_FILE]\n" +
+  "       receive INPUT DELIVERIES.csv [--out NEW_FILE]\n" +
   "       issue INPUT ORDER QUANTITY [--out NEW_FILE]\n" +
-  "Reads a regular UTF-8 JSON file up to 2 MiB. Prints the report by default.\n" +
+  "Reads regular UTF-8 JSON and CSV files up to 2 MiB each. Prints the result by default.\n" +
   "--out publishes to a new file on a filesystem that supports hard links.\n" +
-  "Exit 0: plan produced (possibly with shortages). Exit 2: input or I/O error.\n"
+  "Exit 0: result produced (a plan may show shortages). Exit 2: input or I/O error.\n"
 
 ///|
 fn parse_options(
@@ -253,6 +254,18 @@ fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
       let updated = @kit.refresh_stock(manifest, load_text(args[2]))
       ignore(@kit.allocate(updated))
       publish_report(@kit.encode_manifest(updated), options.output)
+    }
+    ["receive", ..] => {
+      let options = parse_options(args, 2, false)
+      let manifest = @kit.parse_manifest(load_text(options.input))
+      let deliveries = @kit.parse_deliveries_csv(load_text(args[2]))
+      let updated = @kit.receive_packs(manifest, deliveries)
+      let snapshot = @kit.encode_manifest(updated)
+      // Manifest fields are ASCII. Leave room for publish_report's final LF.
+      if snapshot.length() >= 2_097_152 {
+        raise @kit.Invalid("received inventory snapshot exceeds 2 MiB")
+      }
+      publish_report(snapshot, options.output)
     }
     ["issue", ..] => {
       let options = parse_options(args, 3, false)
