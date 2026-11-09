@@ -56,10 +56,9 @@ pub fn receive_packs(
     raise Invalid("a delivery must contain 1..\{DELIVERY_LIMIT} rows")
   }
   ignore(allocate(manifest))
+  check_pack_catalog(manifest)
   let indices : Map[String, Int32] = Map([])
   for index, part in manifest.parts {
-    // A zero shortage validates pack options without solving a purchase.
-    ignore(recommend_purchase(0, part.packs))
     indices[part.id] = index
   }
   let stocks = manifest.parts.map(part => part.stock)

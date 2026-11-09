@@ -2,6 +2,16 @@
 let max_purchase_states : Int32 = 100_000
 
 ///|
+fn check_pack_catalog(manifest : Manifest) -> Unit raise PlanError {
+  for part in manifest.parts {
+    // A zero shortage validates options without running the optimizer.
+    ignore(recommend_purchase(0, part.packs)) catch {
+      Invalid(detail) => raise Invalid("part " + part.id + ": " + detail)
+    }
+  }
+}
+
+///|
 fn pack_gcd(a : Int32, b : Int32) -> Int32 {
   let mut left = a
   let mut right = b

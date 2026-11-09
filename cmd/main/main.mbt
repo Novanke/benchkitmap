@@ -6,6 +6,9 @@ priv struct CliOptions {
 }
 
 ///|
+const MAX_INPUT_BYTES : Int32 = 2_097_152
+
+///|
 let usage : String = "BenchKitMap plans lab kits from a local inventory snapshot.\n" +
   "Usage: plan INPUT [--format json|pick-csv|buy-csv] [--out NEW_FILE]\n" +
   "       project INPUT [--out NEW_FILE]\n" +
@@ -85,9 +88,8 @@ extern "js" fn FileResult::warning(self : Self) -> String =
   #| result => result.warning
 
 ///|
-extern "js" fn read_utf8(input : String) -> FileResult =
-  #| input => {
-  #|   const limit = 2 * 1024 * 1024;
+extern "js" fn read_utf8(input : String, limit : Int32) -> FileResult =
+  #| (input, limit) => {
   #|   try {
   #|     const fs = process.getBuiltinModule("node:fs");
   #|     if (!fs.lstatSync(input).isFile()) throw Error("input must be a regular file");
@@ -189,7 +191,7 @@ extern "js" fn set_exit_code(code : Int32) -> Unit =
 
 ///|
 fn load_text(input : String) -> String raise @kit.PlanError {
-  let file = read_utf8(input)
+  let file = read_utf8(input, MAX_INPUT_BYTES)
   if file.error() != "" {
     raise @kit.Invalid(file.error())
   }
@@ -197,8 +199,16 @@ fn load_text(input : String) -> String raise @kit.PlanError {
 }
 
 ///|
-fn publish_report(text : String, output : String?) -> Unit raise @kit.PlanError {
-  let text = if text.has_suffix("\n") { text } else { text + "\n" }
+fn publish_report(
+  text : String,
+  output : String?,
+  trailing_newline~ : Bool = true,
+) -> Unit raise @kit.PlanError {
+  let text = if trailing_newline && !text.has_suffix("\n") {
+    text + "\n"
+  } else {
+    text
+  }
   match output {
     None => write_stdout(text)
     Some(path) => {
@@ -211,6 +221,20 @@ fn publish_report(text : String, output : String?) -> Unit raise @kit.PlanError 
       }
     }
   }
+}
+
+///|
+fn publish_snapshot(
+  manifest : @kit.Manifest,
+  output : String?,
+) -> Unit raise @kit.PlanError {
+  let text = @kit.encode_manifest(manifest)
+  // Validated manifest IDs and JSON fields are ASCII. At exactly the input
+  // byte limit the snapshot is complete without the optional final LF.
+  if text.length() > MAX_INPUT_BYTES {
+    raise @kit.Invalid("updated inventory snapshot exceeds 2 MiB")
+  }
+  publish_report(text, output, trailing_newline=text.length() < MAX_INPUT_BYTES)
 }
 
 ///|
@@ -252,27 +276,21 @@ fn run(args : FixedArray[String]) -> Unit raise @kit.PlanError {
       let options = parse_options(args, 2, false)
       let manifest = @kit.parse_manifest(load_text(options.input))
       let updated = @kit.refresh_stock(manifest, load_text(args[2]))
-      ignore(@kit.allocate(updated))
-      publish_report(@kit.encode_manifest(updated), options.output)
+      publish_snapshot(updated, options.output)
     }
     ["receive", ..] => {
       let options = parse_options(args, 2, false)
       let manifest = @kit.parse_manifest(load_text(options.input))
       let deliveries = @kit.parse_deliveries_csv(load_text(args[2]))
       let updated = @kit.receive_packs(manifest, deliveries)
-      let snapshot = @kit.encode_manifest(updated)
-      // Manifest fields are ASCII. Leave room for publish_report's final LF.
-      if snapshot.length() >= 2_097_152 {
-        raise @kit.Invalid("received inventory snapshot exceeds 2 MiB")
-      }
-      publish_report(snapshot, options.output)
+      publish_snapshot(updated, options.output)
     }
     ["issue", ..] => {
       let options = parse_options(args, 3, false)
       let quantity = issue_quantity(args[3])
       let manifest = @kit.parse_manifest(load_text(options.input))
       let updated = @kit.record_issue(manifest, args[2], quantity)
-      publish_report(@kit.encode_manifest(updated), options.output)
+      publish_snapshot(updated, options.output)
     }
     [command, ..] => raise @kit.Invalid("unknown command: " + command)
   }

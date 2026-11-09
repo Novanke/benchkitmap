@@ -10,6 +10,50 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_INPUT_BYTES = 2 * 1024 * 1024
+
+
+def compact_json(value: object) -> bytes:
+    return json.dumps(value, separators=(",", ":")).encode("ascii")
+
+
+def boundary_worksheet() -> tuple[bytes, str]:
+    """Make a valid compact worksheet exactly at the 2 MiB input boundary."""
+    ids = [f"part{i:03d}" + "x" * 57 for i in range(256)]
+    parts = [{"id": part, "stock": 0, "packs": []} for part in ids]
+    parts[0]["stock"] = 9
+    parts[0]["packs"] = [{"id": "three", "quantity": 3, "cost_cents": 40}]
+    items = [{"item": part, "quantity": 1} for part in ids]
+
+    def worksheet(count: int) -> dict:
+        return {
+            "schema": "benchkitmap/v1",
+            "parts": parts,
+            "kits": [{"id": "main", "items": items[:1]}] + [
+                {"id": f"unused{start}", "items": items[:min(count - start, 256)]}
+                for start in range(0, count, 256)
+            ],
+            "orders": [{"id": "batch", "kit": "main", "quantity": 5}],
+        }
+
+    lo, hi = 0, 255 * 256
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if len(compact_json(worksheet(mid))) <= MAX_INPUT_BYTES:
+            lo = mid
+        else:
+            hi = mid
+    model = worksheet(lo)
+    remaining = MAX_INPUT_BYTES - len(compact_json(model))
+    for kit in model["kits"][1:]:
+        padding = min(remaining, 64 - len(kit["id"]))
+        kit["id"] += "z" * padding
+        remaining -= padding
+        if remaining == 0:
+            break
+    encoded = compact_json(model)
+    assert len(encoded) == MAX_INPUT_BYTES
+    return encoded, ids[0]
 
 
 def check(node: str, cli: Path) -> None:
@@ -123,6 +167,37 @@ def check(node: str, cli: Path) -> None:
         assert "duplicate --format" in run(
             "plan", manifest, "--format", "json", "--format", "pick-csv", code=2
         ).stderr
+
+        # Input validation is independent of the size of the emitted snapshot.
+        boundary, part = boundary_worksheet()
+        full = work / "at-limit.json"
+        full.write_bytes(boundary)
+        issued_full = work / "issued-at-limit.json"
+        run("issue", full, "batch", 1, "--out", issued_full)
+        data = issued_full.read_bytes()
+        assert len(data) == MAX_INPUT_BYTES and data.endswith(b"}")
+        assert json.loads(run("plan", issued_full).stdout)["orders"][0]["buildable"] == 4
+
+        too_large = work / "snapshot-too-large.json"
+        counts.write_text(f"part,stock\n{part},1000000\n", encoding="ascii")
+        deliveries = work / "boundary-delivery.csv"
+        deliveries.write_text(f"part,pack,count\n{part},three,1\n", encoding="ascii")
+        for command, csv_path in [("refresh-stock", counts), ("receive", deliveries)]:
+            failed = run(command, full, csv_path, "--out", too_large, code=2)
+            assert "updated inventory snapshot exceeds 2 MiB" in failed.stderr
+            assert not failed.stdout and not too_large.exists()
+        assert full.read_bytes() == boundary
+
+        invalid_catalog = json.loads(source)
+        invalid_catalog["parts"][0]["packs"].append(invalid_catalog["parts"][0]["packs"][0])
+        duplicate = work / "duplicate-pack.json"
+        duplicate.write_bytes(compact_json(invalid_catalog))
+        counts.write_text("part,stock\nsensor,9\n", encoding="ascii")
+        for arguments in [("refresh-stock", duplicate, counts), ("issue", duplicate, "field-session", 1)]:
+            failed = run(*arguments, "--out", too_large, code=2)
+            assert "duplicate pack option ID" in failed.stderr
+            assert not failed.stdout and not too_large.exists()
+        assert not list(work.glob(".benchkitmap-*"))
     assert manifest.read_bytes() == source
     print("BenchKitMap CLI workshop, deliveries, CSV and failure checks passed")
 

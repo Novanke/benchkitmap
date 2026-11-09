@@ -162,7 +162,10 @@ pub fn refresh_stock(
   if rows < 2 {
     raise Invalid("stock CSV requires a header and at least one update")
   }
-  snapshot_with_stocks(manifest, stocks)
+  let updated = snapshot_with_stocks(manifest, stocks)
+  ignore(allocate(updated))
+  check_pack_catalog(updated)
+  updated
 }
 
 ///|

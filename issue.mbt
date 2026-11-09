@@ -10,6 +10,7 @@ pub fn record_issue(
     raise Invalid("issue quantity must be positive")
   }
   let allocation = allocate(manifest)
+  check_pack_catalog(manifest)
   for row in allocation.orders {
     if row.id != order_id {
       continue

@@ -49,6 +49,8 @@ node _build/js/release/build/cmd/main/main.js plan next.json
 
 `issue` 以当前快照的优先分配为准，校验实际领用的整套数，扣减每种零件并更新待领订单。全部领完的订单会移除。每次确认实际领用后，下一次操作应使用刚生成的快照。同一份旧清单可生成不同的试算分支。
 
+三个库存更新命令都会在输出前校验快照结构，包括物料引用、库存范围和包装 ID。生成的 JSON 如果超过 2 MiB，命令报错且不创建文件。JSON 恰好为 2 MiB 时省略末尾换行，后续命令仍可读取。
+
 默认输出 JSON 到 stdout。`plan` 的格式可选 `json`、`pick-csv` 或 `buy-csv`。退出码 0 表示已生成结果，规划报告可能包含缺料。输入或 I/O 错误返回 2，并写入 stderr。使用 `--out` 时，输出父目录须已存在并支持硬链接。程序先完成暂存写入再发布新文件，拒绝覆盖已有目标。强制结束进程可能留下隐藏的 `.benchkitmap-*` 暂存目录。
 
 ## 输入
@@ -70,7 +72,7 @@ ID 大小写敏感，长度 1 到 64，只允许 ASCII 字母、数字、下划�
 ## MoonBit SDK
 
 ```sh
-moon add Novanke/benchkitmap@0.2.0
+moon add Novanke/benchkitmap@0.2.1
 ```
 
 在使用方的 `moon.pkg` 导入 `"Novanke/benchkitmap" @kit`。使用 `@kit.parse_manifest(text)` 解析清单，`@kit.plan(manifest)` 生成计划，`@kit.render_plan(plan, @kit.JsonReport)` 导出。若调用方已有结构化数据，可直接构造 `Manifest`，规划入口仍会验证引用、数量和报价。纯核心示例见 [examples/sdk](examples/sdk/main.mbt)。

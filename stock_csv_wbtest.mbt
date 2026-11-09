@@ -92,3 +92,22 @@ test "refresh rejects bytes beyond the CSV input limit" {
   }
   assert_true(rejected)
 }
+
+///|
+test "recount validates the resulting worksheet and can repair an old stock count" {
+  let manifest = stock_csv_fixture()
+  manifest.parts[0] = { ..manifest.parts[0], stock: -1, }
+  let repaired = refresh_stock(manifest, "part,stock\nwire,4")
+  assert_eq(manifest.parts[0].stock, -1)
+  assert_eq(repaired.parts[0].stock, 4)
+  assert_eq(plan(repaired).allocation.orders[0].buildable, 1)
+  repaired.parts[0].packs.push(repaired.parts[0].packs[0])
+  let rejected = try {
+    ignore(refresh_stock(repaired, "part,stock\nwire,6"))
+    false
+  } catch {
+    Invalid(detail) => detail.contains("duplicate pack option ID")
+  }
+  assert_true(rejected)
+  assert_eq(repaired.parts[0].stock, 4)
+}
