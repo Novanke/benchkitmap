@@ -32,7 +32,7 @@ pub fn parse_deliveries_csv(
     if !valid_id(part) || !valid_id(pack) {
       raise Invalid("\{context} has an invalid part or pack ID")
     }
-    let count = csv_quantity(cells[2], context, "pack count")
+    let count = csv_quantity(cells[2], context, "pack count", max_quantity)
     if count == 0 {
       raise Invalid("\{context} pack count must be positive")
     }
@@ -90,9 +90,9 @@ pub fn receive_packs(
     }
     let total = stocks[index].to_int64() +
       pack_size.to_int64() * delivery.count.to_int64()
-    if total > max_quantity.to_int64() {
+    if total > max_stock.to_int64() {
       raise Invalid(
-        "stock for \{delivery.part} would exceed \{max_quantity} units",
+        "stock for \{delivery.part} would exceed \{max_stock} units",
       )
     }
     stocks[index] = total.to_int()

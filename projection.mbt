@@ -33,15 +33,7 @@ pub fn project_after_purchase(
     now
   } else {
     let parts = manifest.parts.map(part => {
-      let available = part.stock.to_int64() +
-        purchased.get(part.id).unwrap_or(0).to_int64()
-      // Total demand per part is already bounded by max_quantity. Additional
-      // surplus above that bound cannot affect any order's buildability.
-      let stock = if available > max_quantity.to_int64() {
-        max_quantity
-      } else {
-        available.to_int()
-      }
+      let stock = part.stock + purchased.get(part.id).unwrap_or(0)
       { ..part, stock, }
     })
     allocate({ ..manifest, parts, }).orders

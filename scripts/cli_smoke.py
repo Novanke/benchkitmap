@@ -139,6 +139,31 @@ def check(node: str, cli: Path) -> None:
         assert "unknown pack" in run("receive", manifest, invalid_delivery, "--out", missing_snapshot, code=2).stderr
         assert not missing_snapshot.exists()
 
+        bulk = work / "bulk.json"
+        bulk.write_bytes(compact_json({
+            "schema": "benchkitmap/v1",
+            "parts": [{"id": "bolt", "stock": 999_999, "packs": [
+                {"id": "bulk", "quantity": 1_000_000, "cost_cents": 125},
+            ]}],
+            "kits": [{"id": "bundle", "items": [{"item": "bolt", "quantity": 1}]}],
+            "orders": [{"id": "class", "kit": "bundle", "quantity": 1_000_000}],
+        }))
+        purchase = json.loads(run("plan", bulk).stdout)["purchases"][0]["packs"][0]
+        assert (purchase["id"], purchase["count"]) == ("bulk", 1)
+        projected = json.loads(run("project", bulk).stdout)["orders"][0]
+        assert projected["buildable_after_priced_purchases"] == 1_000_000
+        bulk_delivery, bulk_received = work / "bulk.csv", work / "bulk-received.json"
+        bulk_delivery.write_text("part,pack,count\nbolt,bulk,1\n", encoding="ascii")
+        run("receive", bulk, bulk_delivery, "--out", bulk_received)
+        replanned = json.loads(run("plan", bulk_received).stdout)
+        assert replanned["orders"][0]["buildable"] == 1_000_000
+        assert replanned["parts"][0]["stock"] == 1_999_999
+        assert replanned["parts"][0]["remaining_stock"] == 999_999
+        assert not replanned["purchases"]
+        excess = work / "bulk-excess.json"
+        failed = run("receive", bulk_received, bulk_delivery, "--out", excess, code=2)
+        assert "would exceed 1999999 units" in failed.stderr and not excess.exists()
+
         pick, buy = work / "pick.csv", work / "buy.csv"
         assert run("plan", manifest, "--format", "pick-csv", "--out", pick).stdout == ""
         run("plan", manifest, "--format", "buy-csv", "--out", buy)

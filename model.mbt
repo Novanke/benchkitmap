@@ -124,6 +124,11 @@ pub(all) suberror PlanError {
 let max_quantity : Int32 = 1_000_000
 
 ///|
+// A recommended whole-pack purchase can leave up to one pack minus one
+// unit of surplus after covering the maximum demand.
+let max_stock : Int32 = 2 * max_quantity - 1
+
+///|
 fn id_alphanumeric(c : Char) -> Bool {
   (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
 }

@@ -101,7 +101,7 @@ fn decode_part(value : Json, path : String) -> Part raise PlanError {
   }
   {
     id: field_text(row, "id", path),
-    stock: field_integer(row, "stock", path, 0, max_quantity),
+    stock: field_integer(row, "stock", path, 0, max_stock),
     packs,
   }
 }

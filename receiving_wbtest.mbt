@@ -61,10 +61,10 @@ test "receive confirmed packs in two deliveries without changing prior snapshots
 ///|
 test "receive rejects duplicate or unknown deliveries and aggregate overflow" {
   let source = receiving_fixture()
-  source.parts[0] = { ..source.parts[0], stock: 999_995, }
+  source.parts[0] = { ..source.parts[0], stock: 1_999_994, }
   let small : PackDelivery = { part: "sensor", pack: "small", count: 1, }
   let large : PackDelivery = { ..small, pack: "large", }
-  assert_eq(receive_packs(source, [large]).parts[0].stock, 1_000_000)
+  assert_eq(receive_packs(source, [large]).parts[0].stock, 1_999_999)
   for
     (deliveries, detail) in [
       ([small, large], "would exceed"),
@@ -82,7 +82,7 @@ test "receive rejects duplicate or unknown deliveries and aggregate overflow" {
     }
     assert_true(rejected)
   }
-  assert_eq(source.parts.map(part => part.stock), [999_995, 1])
+  assert_eq(source.parts.map(part => part.stock), [1_999_994, 1])
 }
 
 ///|

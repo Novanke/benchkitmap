@@ -44,6 +44,7 @@ fn csv_quantity(
   digits : String,
   context : String,
   name : String,
+  maximum : Int32,
 ) -> Int32 raise PlanError {
   if digits.length() == 0 {
     raise Invalid("\{context} has an empty \{name}")
@@ -56,8 +57,8 @@ fn csv_quantity(
     // value has already passed the previous bound check, so this step
     // cannot overflow even if the cell has an excessive number of digits.
     value = value * 10 + c.to_int() - '0'.to_int()
-    if value > max_quantity {
-      raise Invalid("\{context} exceeds \{max_quantity} units")
+    if value > maximum {
+      raise Invalid("\{context} exceeds \{maximum} units")
     }
   }
   value
@@ -157,7 +158,7 @@ pub fn refresh_stock(
       raise Invalid("stock CSV row \{row} repeats part " + id)
     }
     seen[part_index] = true
-    stocks[part_index] = csv_quantity(count, context, "stock count")
+    stocks[part_index] = csv_quantity(count, context, "stock count", max_stock)
   })
   if rows < 2 {
     raise Invalid("stock CSV requires a header and at least one update")

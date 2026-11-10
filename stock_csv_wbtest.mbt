@@ -27,10 +27,10 @@ fn stock_csv_fixture() -> Manifest {
 test "refresh spreadsheet counts, preserve manifest order and round trip" {
   let input = stock_csv_fixture()
   let output = refresh_stock(
-    input, "\u{FEFF}\"part\",\"stock\"\r\n\"switch\",\"0004\"\r\n\"wire\",\"1000000\"\r\n",
+    input, "\u{FEFF}\"part\",\"stock\"\r\n\"switch\",\"0004\"\r\n\"wire\",\"1999999\"\r\n",
   )
   assert_eq(output.parts.map(part => (part.id, part.stock)), [
-    ("wire", 1_000_000),
+    ("wire", 1_999_999),
     ("switch", 4),
     ("screw", 3),
   ])
@@ -66,7 +66,7 @@ test "refresh rejects invalid, ambiguous and unsupported stock CSV rows" {
     csv in [
       "", "part,stock\n", "stock,part\n1,wire", "part,stock\nwire,5\nwire,6", "part,stock\nunknown,1",
       "part,stock\n=wire,1", "part,stock\nwire,", "part,stock\nwire,-1", "part,stock\nwire,1e0",
-      "part,stock\nwire,1000001", "part,stock\nwire,1,2", "part,stock\nwire,1\r",
+      "part,stock\nwire,2000000", "part,stock\nwire,1,2", "part,stock\nwire,1\r",
       "part,stock\nwire,\"1\n2\"", "part,stock\nwire,1\n\n",
     ] {
     let rejected = try {

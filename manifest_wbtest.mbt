@@ -3,7 +3,7 @@ test "reject duplicate keys, fractions disguised by floating rounding and typos"
   for
     stock in [
       "\"stock\":0,\"stock\":1", "\"stock\":1.000000000000000000000001", "\"stock\":1e0",
-      "\"stock\":1000001", "\"stcok\":1",
+      "\"stock\":2000000", "\"stcok\":1",
     ] {
     let prefix = "{\"schema\":\"benchkitmap/v1\",\"parts\":[{\"id\":\"wire\","
     let suffix = ",\"packs\":[]}],\"kits\":[{\"id\":\"a\",\"items\":[{\"item\":\"wire\",\"quantity\":1}]}],\"orders\":[{\"id\":\"o\",\"kit\":\"a\",\"quantity\":1}]}"

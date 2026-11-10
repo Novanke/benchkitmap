@@ -39,13 +39,13 @@ test "partial purchasing reruns priorities without inventing unpriced stock" {
 }
 
 ///|
-test "all sourced demand remains covered when a pack exceeds the stock limit" {
+test "recommended packs can be received and replanned at the stock limit" {
   let input : Manifest = {
     parts: [
       {
         id: "bolt",
         stock: 999_999,
-        packs: [{ id: "pair", quantity: 2, cost_cents: 125, }],
+        packs: [{ id: "bulk", quantity: 1_000_000, cost_cents: 125, }],
       },
     ],
     kits: [{ id: "bundle", items: [{ item: "bolt", quantity: 1, }], }],
@@ -62,4 +62,20 @@ test "all sourced demand remains covered when a pack exceeds the stock limit" {
   assert_eq(result.orders[1].requested, 2)
   assert_eq(result.orders[1].buildable_now, 1)
   assert_eq(result.orders[1].buildable_after_priced_purchases, 2)
+  let recommended = plan(input).purchases[0].purchase.unwrap()
+  let deliveries : Array[PackDelivery] = recommended.packs.map(pack => {
+    part: "bolt",
+    pack: pack.id,
+    count: pack.count,
+  })
+  let received = receive_packs(input, deliveries)
+  let roundtrip = parse_manifest(encode_manifest(received))
+  assert_eq(roundtrip.parts[0].stock, 1_999_999)
+  let updated = plan(roundtrip)
+  assert_eq(updated.allocation.orders.map(order => order.buildable), [
+    999_998, 2,
+  ])
+  assert_eq(updated.allocation.parts[0].remaining_stock, 999_999)
+  assert_true(updated.purchases.is_empty())
+  assert_eq(input.parts[0].stock, 999_999)
 }

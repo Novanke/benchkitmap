@@ -16,9 +16,10 @@ fn allocation_check_quantity(
   label : String,
   quantity : Int32,
   minimum : Int32,
+  maximum~ : Int32 = max_quantity,
 ) -> Unit raise PlanError {
-  if quantity < minimum || quantity > max_quantity {
-    raise Invalid("\{label} must be in \{minimum}..\{max_quantity}")
+  if quantity < minimum || quantity > maximum {
+    raise Invalid("\{label} must be in \{minimum}..\{maximum}")
   }
 }
 
@@ -123,7 +124,12 @@ pub fn allocate(manifest : Manifest) -> Allocation raise PlanError {
     if !valid_id(part.id) || part_indices.contains(part.id) {
       raise Invalid("invalid or duplicate part id: \{part.id}")
     }
-    allocation_check_quantity("stock for part \{part.id}", part.stock, 0)
+    allocation_check_quantity(
+      "stock for part \{part.id}",
+      part.stock,
+      0,
+      maximum=max_stock,
+    )
     part_indices[part.id] = index
   }
   for index, kit in manifest.kits {
