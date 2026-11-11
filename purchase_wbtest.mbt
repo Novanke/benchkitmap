@@ -92,6 +92,46 @@ test "purchase validates even when no order is needed" {
 }
 
 ///|
+test "same-sized supplier offers handle bulk demand and preserve tie order" {
+  let cheapest = recommend_purchase(100_000, [
+    { id: "first", quantity: 1, cost_cents: 9, },
+    { id: "winner", quantity: 1, cost_cents: 7, },
+    { id: "later", quantity: 1, cost_cents: 7, },
+  ]).unwrap()
+  assert_eq((cheapest.ordered, cheapest.cost_cents), (100_000, 700_000L))
+  assert_eq(cheapest.packs.map(pack => (pack.id, pack.count)), [
+    ("winner", 100_000),
+  ])
+  let large = recommend_purchase(1_000_000, [
+    { id: "z", quantity: 7, cost_cents: 1_000_000_000, },
+    { id: "a", quantity: 7, cost_cents: 1_000_000_000, },
+  ]).unwrap()
+  assert_eq(
+    (large.ordered, large.cost_cents),
+    (1_000_006, 142_858_000_000_000L),
+  )
+  assert_eq(large.packs.map(pack => (pack.id, pack.count)), [("z", 142_858)])
+  let free = recommend_purchase(7, [
+    { id: "z", quantity: 3, cost_cents: 0, },
+    { id: "a", quantity: 3, cost_cents: 0, },
+  ]).unwrap()
+  assert_eq((free.ordered, free.cost_cents), (9, 0L))
+  assert_eq(free.packs.map(pack => (pack.id, pack.count)), [("z", 3)])
+  let invalid = try {
+    ignore(
+      recommend_purchase(100_000, [
+        { id: "valid", quantity: 1, cost_cents: 1, },
+        { id: "bad", quantity: 1, cost_cents: -1, },
+      ]),
+    )
+    false
+  } catch {
+    Invalid(_) => true
+  }
+  assert_true(invalid)
+}
+
+///|
 test "purchase scores agree with an exhaustive small integer oracle" {
   for seed in 0..<64 {
     let shortage = seed % 10 + 1

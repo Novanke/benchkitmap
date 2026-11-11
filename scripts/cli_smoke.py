@@ -164,6 +164,33 @@ def check(node: str, cli: Path) -> None:
         failed = run("receive", bulk_received, bulk_delivery, "--out", excess, code=2)
         assert "would exceed 1999999 units" in failed.stderr and not excess.exists()
 
+        quotes = work / "supplier-quotes.json"
+        quotes.write_bytes(compact_json({
+            "schema": "benchkitmap/v1",
+            "parts": [{"id": "bolt", "stock": 0, "packs": [
+                {"id": "vendor-a", "quantity": 1, "cost_cents": 9},
+                {"id": "vendor-b", "quantity": 1, "cost_cents": 7},
+                {"id": "vendor-c", "quantity": 1, "cost_cents": 7},
+            ]}],
+            "kits": [{"id": "bundle", "items": [{"item": "bolt", "quantity": 1}]}],
+            "orders": [{"id": "class", "kit": "bundle", "quantity": 100_000}],
+        }))
+        quoted_plan = json.loads(run("plan", quotes).stdout)
+        assert quoted_plan["purchase_total_cents"] == "700000"
+        rows = list(csv.DictReader(run("plan", quotes, "--format", "buy-csv").stdout.splitlines()))
+        assert len(rows) == 1
+        assert (rows[0]["pack"], rows[0]["pack_count"]) == ("vendor-b", "100000")
+        supplier_delivery = work / "supplier-delivery.csv"
+        with supplier_delivery.open("w", encoding="ascii", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["part", "pack", "count"])
+            writer.writerow([rows[0]["part"], rows[0]["pack"], rows[0]["pack_count"]])
+        supplier_received = work / "supplier-received.json"
+        run("receive", quotes, supplier_delivery, "--out", supplier_received)
+        supplier_plan = json.loads(run("plan", supplier_received).stdout)
+        assert supplier_plan["orders"][0]["buildable"] == 100_000
+        assert not supplier_plan["purchases"]
+
         pick, buy = work / "pick.csv", work / "buy.csv"
         assert run("plan", manifest, "--format", "pick-csv", "--out", pick).stdout == ""
         run("plan", manifest, "--format", "buy-csv", "--out", buy)

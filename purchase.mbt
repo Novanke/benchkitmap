@@ -26,8 +26,8 @@ fn pack_gcd(a : Int32, b : Int32) -> Int32 {
 ///|
 /// Minimize price, then excess units, then pack count. Equal solutions favor
 /// the earlier declared offers. Return None when nothing can be recommended.
-/// With multiple offers the exact search is limited to 100,000 reachable or
-/// intermediate states after dividing quantities by their greatest divisor.
+/// Equal-size offers use a direct price comparison. For mixed sizes the exact
+/// search is limited to 100,000 states after common-divisor scaling.
 pub fn recommend_purchase(
   shortage : Int32,
   packs : Array[PackOption],
@@ -65,8 +65,13 @@ pub fn recommend_purchase(
   if shortage == 0 || packs.length() == 0 {
     return None
   }
-  if packs.length() == 1 {
-    let pack = packs[0]
+  if packs.all(pack => pack.quantity == packs[0].quantity) {
+    let mut pack = packs[0]
+    for offer in packs {
+      if offer.cost_cents < pack.cost_cents {
+        pack = offer
+      }
+    }
     let count = (shortage - 1) / pack.quantity + 1
     return Some({
       shortage,
